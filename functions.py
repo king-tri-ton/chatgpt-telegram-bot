@@ -1,36 +1,34 @@
-import os
-from dotenv import load_dotenv
-import requests
+from config import AI_TOKEN
+from openai import OpenAI
 
-# Загрузка переменных окружения из .env файла
-load_dotenv()
-
-# Получение AI_TOKEN из окружения
-AI_TOKEN = os.getenv('AI_TOKEN')
-
-# Проверка наличия токена
 if not AI_TOKEN:
     raise ValueError("AI_TOKEN не найден в .env файле")
 
-# Function to send a message to OpenAI's Chat Completions API and get a response
-def get_openai_response(message):
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {AI_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "gpt-4-turbo",
-        "messages": [
-            {"role": "user", "content": message}
-        ]
-    }
-    
+# Создаём клиента OpenAI
+client = OpenAI(api_key=AI_TOKEN)
+
+def get_openai_response(message: str, effort: str = "low", verbosity: str = "low"):
+    """
+    Получает ответ от GPT-5 через новый Responses API.
+    Возвращает текст ответа и метаданные (prompt_tokens, completion_tokens).
+    """
     try:
-        response = requests.post(url, json=data, headers=headers)
-        response.raise_for_status()  # Проверка на ошибки HTTP
-        return response.json()["choices"][0]["message"]["content"]
-    except requests.exceptions.RequestException as e:
-        return f"Ошибка при обращении к OpenAI API: {str(e)}"
-    except (KeyError, IndexError) as e:
-        return f"Ошибка при обработке ответа от OpenAI: {str(e)}"
+        result = client.responses.create(
+            model="gpt-5",
+            input=message,
+            reasoning={"effort": effort},
+            text={"verbosity": verbosity},
+        )
+
+        text = result.output_text
+        usage = getattr(result, "usage", None)
+        prompt_tokens = getattr(usage, "input_tokens", 0)
+        completion_tokens = getattr(usage, "output_tokens", 0)
+        
+        return text, prompt_tokens, completion_tokens
+        
+    except Exception as e:
+        print(f"❌ ОШИБКА в get_openai_response: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Ошибка при обращении к GPT-5 API: {e}", 0, 0
