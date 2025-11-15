@@ -9,12 +9,12 @@ client = OpenAI(api_key=AI_TOKEN)
 
 def get_openai_response(message: str, effort: str = "low", verbosity: str = "low"):
     """
-    Получает ответ от GPT-5 через новый Responses API.
+    Получает ответ от GPT-5.1 через новый Responses API.
     Возвращает текст ответа и метаданные (prompt_tokens, completion_tokens).
     """
     try:
         result = client.responses.create(
-            model="gpt-5",
+            model="gpt-5.1",
             input=message,
             reasoning={"effort": effort},
             text={"verbosity": verbosity},
@@ -31,4 +31,4 @@ def get_openai_response(message: str, effort: str = "low", verbosity: str = "low
         print(f"❌ ОШИБКА в get_openai_response: {e}")
         import traceback
         traceback.print_exc()
-        return f"Ошибка при обращении к GPT-5 API: {e}", 0, 0
+        return f"Ошибка при обращении к GPT-5.1 API: {e}", 0, 0
