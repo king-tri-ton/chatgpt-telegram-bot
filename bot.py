@@ -25,7 +25,7 @@ def send_welcome(message):
     requests = db_manager.get_user_requests(message.chat.id)
     
     welcome_text = (
-        "👋 Привет! Я ваш AI-ассистент на базе GPT-5.1.\n\n"
+        "👋 Привет! Я ваш AI-ассистент на базе GPT-5.1 Instant.\n\n"
         f"💰 Ваш баланс: {requests} запросов\n\n"
         "Просто напишите мне сообщение (минимум 10 символов), "
         "и я постараюсь помочь!\n\n"
@@ -511,7 +511,7 @@ def generate_result(message):
             
             requests = db_manager.get_user_requests(message.chat.id)
             
-            bot.reply_to(message, response_text)
+            bot.reply_to(message, response_text, parse_mode='HTML')
             
             if requests > 0:
                 balance_info = f"💰 Осталось запросов: {requests}"

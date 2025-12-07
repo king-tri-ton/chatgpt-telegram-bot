@@ -72,9 +72,9 @@ class DatabaseManager:
                 )
                 conn.commit()
                 if cursor.rowcount > 0:
-                    print(f"➕ Новый пользователь: {tg_id} (запросов: {initial_requests})")
+                    print(f"Новый пользователь: {tg_id} (запросов: {initial_requests})")
         except Exception as e:
-            print(f"❌ Ошибка при добавлении пользователя: {e}")
+            print(f"Ошибка при добавлении пользователя: {e}")
     
     def get_user_requests(self, tg_id):
         """Получает количество запросов пользователя"""
@@ -90,7 +90,7 @@ class DatabaseManager:
                     return result[0]
                 return 0
         except Exception as e:
-            print(f"❌ Ошибка при получении запросов: {e}")
+            print(f"Ошибка при получении запросов: {e}")
             return 0
     
     def use_request(self, tg_id):
@@ -121,7 +121,7 @@ class DatabaseManager:
                 return False
                 
         except Exception as e:
-            print(f"❌ Ошибка при использовании запроса: {e}")
+            print(f"Ошибка при использовании запроса: {e}")
             return False
     
     def add_requests(self, tg_id, amount):
@@ -136,7 +136,7 @@ class DatabaseManager:
                 conn.commit()
                 return True
         except Exception as e:
-            print(f"❌ Ошибка при добавлении запросов: {e}")
+            print(f"Ошибка при добавлении запросов: {e}")
             return False
     
     def add_payment(self, tg_id, amount, stars_paid, payment_id):
@@ -150,7 +150,7 @@ class DatabaseManager:
                 )
                 conn.commit()
         except Exception as e:
-            print(f"❌ Ошибка при сохранении платежа: {e}")
+            print(f"Ошибка при сохранении платежа: {e}")
     
     def add_result(self, tg_id, prompt, result, prompt_tokens=0, completion_tokens=0):
         """Сохраняет запрос пользователя и ответ бота с информацией о токенах"""
@@ -163,7 +163,7 @@ class DatabaseManager:
                 )
                 conn.commit()
         except Exception as e:
-            print(f"❌ Ошибка при сохранении результата: {e}")
+            print(f"Ошибка при сохранении результата: {e}")
     
     def get_total_users(self):
         """Возвращает общее количество пользователей"""
@@ -174,7 +174,7 @@ class DatabaseManager:
                 total_users = cursor.fetchone()[0]
                 return total_users
         except Exception as e:
-            print(f"❌ Ошибка при получении количества пользователей: {e}")
+            print(f"Ошибка при получении количества пользователей: {e}")
             return 0
     
     def get_total_requests(self):
@@ -186,7 +186,7 @@ class DatabaseManager:
                 total_requests = cursor.fetchone()[0]
                 return total_requests
         except Exception as e:
-            print(f"❌ Ошибка при получении количества запросов: {e}")
+            print(f"Ошибка при получении количества запросов: {e}")
             return 0
     
     def get_total_revenue(self):
@@ -198,7 +198,7 @@ class DatabaseManager:
                 result = cursor.fetchone()[0]
                 return result if result else 0
         except Exception as e:
-            print(f"❌ Ошибка при получении выручки: {e}")
+            print(f"Ошибка при получении выручки: {e}")
             return 0
     
     # ==================== ПРОМОКОДЫ ====================
@@ -215,10 +215,10 @@ class DatabaseManager:
                 conn.commit()
                 return True
         except sqlite3.IntegrityError:
-            print(f"❌ Промокод {code} уже существует")
+            print(f"Промокод {code} уже существует")
             return False
         except Exception as e:
-            print(f"❌ Ошибка при создании промокода: {e}")
+            print(f"Ошибка при создании промокода: {e}")
             return False
     
     def activate_promo(self, tg_id, code):
@@ -277,7 +277,7 @@ class DatabaseManager:
                 return {'success': True, 'requests': requests}
                 
         except Exception as e:
-            print(f"❌ Ошибка при активации промокода: {e}")
+            print(f"Ошибка при активации промокода: {e}")
             return {'success': False, 'message': 'Ошибка при активации промокода'}
     
     def get_all_promos(self):
@@ -299,7 +299,7 @@ class DatabaseManager:
                     })
                 return promos
         except Exception as e:
-            print(f"❌ Ошибка при получении списка промокодов: {e}")
+            print(f"Ошибка при получении списка промокодов: {e}")
             return []
     
     def delete_promo(self, code):
@@ -317,7 +317,7 @@ class DatabaseManager:
                     return True
                 return False
         except Exception as e:
-            print(f"❌ Ошибка при удалении промокода: {e}")
+            print(f"Ошибка при удалении промокода: {e}")
             return False
 
 # Создаём глобальный экземпляр менеджера БД
