@@ -157,10 +157,10 @@ python bot.py
 Если проект вам понравился:
 - ⭐ Поставьте звезду на GitHub
 - 📢 Поделитесь с друзьями
-- 💬 Напишите отзыв
+- 💬 Напишите отзыв в телеграм
 
 ---
 
 **Ссылка на бота:** [@ChatGPTTlgrmBot](https://t.me/ChatGPTTlgrmBot)
 
-По всем вопросам: [@king_triton](https://t.me/king_triton) или [@lizamngr](https://t.me/lizamngr)
+По всем вопросам: [@king_tri_ton](https://t.me/king_tri_ton) или [@lizamngr](https://t.me/lizamngr)

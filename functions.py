@@ -56,13 +56,7 @@ def get_openai_response(message: str, effort: str = "low", verbosity: str = "low
         usage = getattr(result, "usage", None)
         prompt_tokens = getattr(usage, "input_tokens", 0)
         completion_tokens = getattr(usage, "output_tokens", 0)
-
-        print("ОТЛАДКА до форматирования текста: " + text + "\n")
-
         text = md_to_html(text)
-
-        print("ОТЛАДКА после форматирования текста: " + text + "\n")
-        
         return text, prompt_tokens, completion_tokens
         
     except Exception as e:
@@ -70,4 +64,3 @@ def get_openai_response(message: str, effort: str = "low", verbosity: str = "low
         import traceback
         traceback.print_exc()
         return f"Ошибка при обращении к GPT-5.1 API: {e}", 0, 0
-
