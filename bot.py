@@ -14,16 +14,15 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Создаём таблицы при запуске
 db_manager.create_tables()
 
-# Словари для хранения временных данных
+# Единственный словарь для отслеживания пользователей, ожидающих ввода суммы при покупке
 waiting_for_amount = {}
-waiting_for_user_id = {}
-waiting_for_promo_data = {}
 
+
+# ==================== ОСНОВНЫЕ КОМАНДЫ ====================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     db_manager.add_user(message.chat.id, initial_requests=3)
     requests = db_manager.get_user_requests(message.chat.id)
-    
     welcome_text = (
         "👋 Привет! Я ваш AI-ассистент на базе GPT-5.1 Instant.\n\n"
         f"💰 Ваш баланс: {requests} запросов\n\n"
@@ -38,6 +37,7 @@ def send_welcome(message):
         "/dev - о разработчике и проекте"
     )
     bot.reply_to(message, welcome_text)
+
 
 @bot.message_handler(commands=['help'])
 def send_help(message):
@@ -58,10 +58,10 @@ def send_help(message):
     )
     bot.reply_to(message, help_text)
 
+
 @bot.message_handler(commands=['balance'])
 def check_balance(message):
     requests = db_manager.get_user_requests(message.chat.id)
-    
     balance_text = f"💰 Ваш баланс: {requests} запросов"
     
     if requests == 0:
@@ -69,29 +69,32 @@ def check_balance(message):
     
     bot.reply_to(message, balance_text)
 
+
 @bot.message_handler(commands=['promo'])
 def activate_promo(message):
-    bot.send_message(
-        message.chat.id,
-        "🎟️ Введите промокод:"
-    )
-    bot.register_next_step_handler(message, process_promo_code)
+    bot.send_message(message.chat.id, "🎟️ Введите промокод или отправьте /cancel для отмены")
+    bot.register_next_step_handler(message, process_promo_step)
 
-def process_promo_code(message):
-    promo_code = message.text.strip().upper()
-    
+
+def process_promo_step(message):
+    text = message.text.strip()
+
+    if text.lower() == "/cancel":
+        bot.send_message(message.chat.id, "Вы отменили активацию промокода!")
+        return
+
+    promo_code = text.upper()
     result = db_manager.activate_promo(message.chat.id, promo_code)
-    
+
     if result['success']:
         requests = db_manager.get_user_requests(message.chat.id)
-        success_text = (
-            f"✅ Промокод активирован!\n\n"
-            f"➕ Добавлено запросов: {result['requests']}\n"
-            f"💰 Ваш новый баланс: {requests} запросов"
+        bot.send_message(
+            message.chat.id,
+            f"✅ Промокод активирован!\n\n➕ Добавлено запросов: {result['requests']}\n💰 Новый баланс: {requests}"
         )
-        bot.send_message(message.chat.id, success_text)
     else:
         bot.send_message(message.chat.id, f"❌ {result['message']}")
+
 
 @bot.message_handler(commands=['dev'])
 def show_dev_info(message):
@@ -112,10 +115,10 @@ def show_dev_info(message):
     )
     bot.reply_to(message, dev_text, disable_web_page_preview=True)
 
+
 @bot.message_handler(commands=['buy'])
 def buy_requests(message):
     markup = types.InlineKeyboardMarkup(row_width=3)
-    
     buttons = [
         types.InlineKeyboardButton("1 ⭐", callback_data="buy_1"),
         types.InlineKeyboardButton("5 ⭐", callback_data="buy_5"),
@@ -135,11 +138,10 @@ def buy_requests(message):
         "1 запрос = 1 ⭐ Telegram Star\n\n"
         "Или введите свою сумму (от 1 до 100)"
     )
-    
     bot.send_message(message.chat.id, buy_text, reply_markup=markup)
 
-# ==================== АДМИНСКИЕ КОМАНДЫ ====================
 
+# ==================== АДМИНСКИЕ КОМАНДЫ ====================
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if message.from_user.id != ADMIN_ID:
@@ -155,6 +157,7 @@ def admin_panel(message):
         "/deletepromo - удалить промокод"
     )
     bot.reply_to(message, admin_text)
+
 
 @bot.message_handler(commands=['stat'])
 def show_stats(message):
@@ -174,40 +177,33 @@ def show_stats(message):
     )
     bot.reply_to(message, stats_text)
 
+
 @bot.message_handler(commands=['give'])
 def give_requests_command(message):
     if message.from_user.id != ADMIN_ID:
         bot.reply_to(message, "⛔ У вас нет прав на выполнение этой команды.")
         return
     
-    bot.send_message(
-        message.chat.id,
-        "👤 Введите Telegram ID пользователя:"
-    )
+    bot.send_message(message.chat.id, "👤 Введите Telegram ID пользователя:")
     bot.register_next_step_handler(message, process_give_user_id)
+
 
 def process_give_user_id(message):
     try:
         user_id = int(message.text.strip())
-        waiting_for_user_id[message.from_user.id] = user_id
-        
         bot.send_message(
             message.chat.id,
             f"💰 Введите количество запросов для начисления пользователю {user_id}:"
         )
-        bot.register_next_step_handler(message, process_give_amount)
-        
+        # Передаём user_id в следующий обработчик
+        bot.register_next_step_handler(message, process_give_amount, user_id)
     except ValueError:
         bot.send_message(message.chat.id, "❌ Неверный формат ID. Попробуйте снова: /give")
 
-def process_give_amount(message):
+
+def process_give_amount(message, user_id):
     try:
         amount = int(message.text.strip())
-        user_id = waiting_for_user_id.get(message.from_user.id)
-        
-        if not user_id:
-            bot.send_message(message.chat.id, "❌ Ошибка. Начните снова: /give")
-            return
         
         if amount <= 0:
             bot.send_message(message.chat.id, "❌ Количество должно быть положительным числом.")
@@ -215,8 +211,6 @@ def process_give_amount(message):
         
         # Начисляем запросы
         if db_manager.add_requests(user_id, amount):
-            del waiting_for_user_id[message.from_user.id]
-            
             requests = db_manager.get_user_requests(user_id)
             bot.send_message(
                 message.chat.id,
@@ -235,9 +229,9 @@ def process_give_amount(message):
                 pass
         else:
             bot.send_message(message.chat.id, "❌ Ошибка при начислении запросов.")
-            
     except ValueError:
         bot.send_message(message.chat.id, "❌ Неверный формат количества. Попробуйте снова: /give")
+
 
 @bot.message_handler(commands=['createpromo'])
 def create_promo_command(message):
@@ -251,6 +245,7 @@ def create_promo_command(message):
     )
     bot.register_next_step_handler(message, process_promo_name)
 
+
 def process_promo_name(message):
     promo_code = message.text.strip().upper()
     
@@ -258,15 +253,15 @@ def process_promo_name(message):
         bot.send_message(message.chat.id, "❌ Промокод может содержать только буквы, цифры, _ и -")
         return
     
-    waiting_for_promo_data[message.from_user.id] = {'code': promo_code}
-    
     bot.send_message(
         message.chat.id,
         "💰 Введите количество запросов, которое дает промокод:"
     )
-    bot.register_next_step_handler(message, process_promo_requests)
+    # Передаём promo_code в следующий обработчик
+    bot.register_next_step_handler(message, process_promo_requests, promo_code)
 
-def process_promo_requests(message):
+
+def process_promo_requests(message, promo_code):
     try:
         requests = int(message.text.strip())
         
@@ -274,23 +269,17 @@ def process_promo_requests(message):
             bot.send_message(message.chat.id, "❌ Количество должно быть положительным числом.")
             return
         
-        promo_data = waiting_for_promo_data.get(message.from_user.id)
-        if not promo_data:
-            bot.send_message(message.chat.id, "❌ Ошибка. Начните снова: /createpromo")
-            return
-        
-        promo_data['requests'] = requests
-        
         bot.send_message(
             message.chat.id,
             "🔢 Введите максимальное количество использований (0 = без ограничений):"
         )
-        bot.register_next_step_handler(message, process_promo_max_uses)
-        
+        # Передаём promo_code и requests в следующий обработчик
+        bot.register_next_step_handler(message, process_promo_max_uses, promo_code, requests)
     except ValueError:
         bot.send_message(message.chat.id, "❌ Неверный формат. Введите число.")
 
-def process_promo_max_uses(message):
+
+def process_promo_max_uses(message, promo_code, requests):
     try:
         max_uses = int(message.text.strip())
         
@@ -298,33 +287,26 @@ def process_promo_max_uses(message):
             bot.send_message(message.chat.id, "❌ Количество не может быть отрицательным.")
             return
         
-        promo_data = waiting_for_promo_data.get(message.from_user.id)
-        if not promo_data:
-            bot.send_message(message.chat.id, "❌ Ошибка. Начните снова: /createpromo")
-            return
-        
         # Создаем промокод
         result = db_manager.create_promo(
-            promo_data['code'],
-            promo_data['requests'],
+            promo_code,
+            requests,
             max_uses if max_uses > 0 else None
         )
-        
-        del waiting_for_promo_data[message.from_user.id]
         
         if result:
             promo_text = (
                 f"✅ Промокод создан!\n\n"
-                f"🎟️ Код: {promo_data['code']}\n"
-                f"💰 Запросов: {promo_data['requests']}\n"
+                f"🎟️ Код: {promo_code}\n"
+                f"💰 Запросов: {requests}\n"
                 f"🔢 Использований: {max_uses if max_uses > 0 else '∞'}"
             )
             bot.send_message(message.chat.id, promo_text)
         else:
             bot.send_message(message.chat.id, "❌ Промокод с таким названием уже существует.")
-            
     except ValueError:
         bot.send_message(message.chat.id, "❌ Неверный формат. Введите число.")
+
 
 @bot.message_handler(commands=['listpromo'])
 def list_promos(message):
@@ -339,11 +321,9 @@ def list_promos(message):
         return
     
     promo_text = "📋 Список промокодов:\n\n"
-    
     for promo in promos:
         status = "✅ Активен" if promo['active'] else "❌ Деактивирован"
         max_uses = promo['max_uses'] if promo['max_uses'] else "∞"
-        
         promo_text += (
             f"🎟️ {promo['code']}\n"
             f"   💰 Запросов: {promo['requests']}\n"
@@ -353,17 +333,16 @@ def list_promos(message):
     
     bot.send_message(message.chat.id, promo_text)
 
+
 @bot.message_handler(commands=['deletepromo'])
 def delete_promo_command(message):
     if message.from_user.id != ADMIN_ID:
         bot.reply_to(message, "⛔ У вас нет прав на выполнение этой команды.")
         return
     
-    bot.send_message(
-        message.chat.id,
-        "🗑️ Введите промокод для удаления:"
-    )
+    bot.send_message(message.chat.id, "🗑️ Введите промокод для удаления:")
     bot.register_next_step_handler(message, process_delete_promo)
+
 
 def process_delete_promo(message):
     promo_code = message.text.strip().upper()
@@ -373,8 +352,8 @@ def process_delete_promo(message):
     else:
         bot.send_message(message.chat.id, f"❌ Промокод {promo_code} не найден.")
 
-# ==================== ОБРАБОТЧИКИ ПОКУПКИ ====================
 
+# ==================== ОБРАБОТЧИКИ ПОКУПКИ ====================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('buy_'))
 def process_buy(call):
     try:
@@ -400,6 +379,7 @@ def process_buy(call):
         print(f"❌ Ошибка при создании инвойса: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка при создании счёта")
 
+
 def create_invoice(chat_id, user_id, amount):
     prices = [types.LabeledPrice(label=f"{amount} запросов", amount=amount)]
     
@@ -413,20 +393,20 @@ def create_invoice(chat_id, user_id, amount):
         prices=prices
     )
 
+
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def process_pre_checkout(pre_checkout_query):
     bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
+
 @bot.message_handler(content_types=['successful_payment'])
 def process_successful_payment(message):
     payment_info = message.successful_payment
-    
     payload_parts = payment_info.invoice_payload.split('_')
     amount = int(payload_parts[1])
     user_id = int(payload_parts[2])
     
     db_manager.add_requests(user_id, amount)
-    
     db_manager.add_payment(
         tg_id=user_id,
         amount=amount,
@@ -435,17 +415,15 @@ def process_successful_payment(message):
     )
     
     requests = db_manager.get_user_requests(user_id)
-    
     success_text = (
         f"✅ Оплата прошла успешно!\n\n"
         f"➕ Добавлено запросов: {amount}\n\n"
         f"💰 Ваш новый баланс: {requests} запросов"
     )
-    
     bot.send_message(message.chat.id, success_text)
 
-# ==================== ОСНОВНОЙ ОБРАБОТЧИК ====================
 
+# ==================== ОСНОВНОЙ ОБРАБОТЧИК ====================
 @bot.message_handler(func=lambda message: True)
 def generate_result(message):
     # Проверяем, ожидается ли ввод суммы для покупки
@@ -462,7 +440,6 @@ def generate_result(message):
             
             del waiting_for_amount[message.from_user.id]
             create_invoice(message.chat.id, message.from_user.id, amount)
-            
         except ValueError:
             bot.send_message(
                 message.chat.id,
@@ -472,7 +449,7 @@ def generate_result(message):
     
     if len(message.text) < 10:
         bot.send_message(
-            message.chat.id, 
+            message.chat.id,
             "⚠️ Пожалуйста, введите сообщение длиной не менее 10 символов."
         )
         return
@@ -502,15 +479,14 @@ def generate_result(message):
         
         if db_manager.use_request(message.chat.id):
             db_manager.add_result(
-                message.chat.id, 
-                message.text, 
+                message.chat.id,
+                message.text,
                 response_text,
                 prompt_tokens,
                 completion_tokens
             )
             
             requests = db_manager.get_user_requests(message.chat.id)
-            
             bot.reply_to(message, response_text, parse_mode='HTML')
             
             if requests > 0:
@@ -523,12 +499,13 @@ def generate_result(message):
                 )
         else:
             bot.send_message(message.chat.id, "❌ Ошибка при использовании запроса")
-        
+            
     except Exception as e:
         error_message = f"❌ Произошла ошибка: {str(e)}"
         bot.reply_to(message, error_message)
         import traceback
         traceback.print_exc()
+
 
 if __name__ == '__main__':
     bot.infinity_polling(interval=0)
