@@ -94,12 +94,14 @@ chatgpt-telegram-bot/
    BOT_TOKEN=your_telegram_bot_token
    ADMIN_ID=your_telegram_user_id
    DB_NAME=your_db_name
+   SYSTEM_PROMPT=your_system_prompt_here
    ```
    
    - **AI_TOKEN**: Получите на [platform.openai.com](https://platform.openai.com/api-keys)
    - **BOT_TOKEN**: Получите у [@BotFather](https://t.me/botfather) в Telegram
    - **ADMIN_ID**: Ваш Telegram ID (узнать можно у [@username_to_id_bot](https://t.me/username_to_id_bot))
    - **DB_NAME**: Название базы данных SQLite3
+   * **SYSTEM_PROMPT** — инструкция для бота, определяющая его поведение
 
 ## 🚀 Запуск
 

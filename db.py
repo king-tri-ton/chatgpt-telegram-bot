@@ -1,16 +1,31 @@
 import sqlite3
 from config import DB_NAME
-from threading import Lock
+from contextlib import contextmanager
 from datetime import datetime
 
+DB_PATH = DB_NAME + '.db'
+
+@contextmanager
+def get_db():
+    """Создает новое соединение для каждой операции"""
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Database error: {e}")
+        raise
+    finally:
+        conn.close()
+
 class DatabaseManager:
-    def __init__(self, db_name=DB_NAME + '.db'):
-        self.db_name = db_name
-        self.lock = Lock()
+    def __init__(self):
+        self.create_tables()
     
     def create_tables(self):
         """Создаёт необходимые таблицы"""
-        with self.lock, sqlite3.connect(self.db_name) as conn:
+        with get_db() as conn:
             cursor = conn.cursor()
             
             cursor.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -39,7 +54,6 @@ class DatabaseManager:
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             )''')
             
-            # Таблица промокодов
             cursor.execute('''CREATE TABLE IF NOT EXISTS promo_codes (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 code TEXT UNIQUE NOT NULL,
@@ -50,7 +64,6 @@ class DatabaseManager:
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             )''')
             
-            # Таблица активаций промокодов
             cursor.execute('''CREATE TABLE IF NOT EXISTS promo_activations (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 tg_id INTEGER NOT NULL,
@@ -59,27 +72,42 @@ class DatabaseManager:
                                 activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             )''')
             
-            conn.commit()
+            # Создаём индексы
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_tg_id ON users(tg_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_results_tg_id ON results(tg_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_tg_id ON payments(tg_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_promo_activations_tg_id ON promo_activations(tg_id);")
     
     def add_user(self, tg_id, initial_requests=3):
-        """Добавляет нового пользователя с начальными запросами"""
+        """Добавляет нового пользователя с начальными запросами
+        
+        Returns:
+            bool: True если пользователь был добавлен, False если уже существует или ошибка
+        """
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT OR IGNORE INTO users (tg_id, requests) VALUES (?, ?)", 
                     (tg_id, initial_requests)
                 )
-                conn.commit()
+                
+                # cursor.rowcount показывает, сколько строк было затронуто
                 if cursor.rowcount > 0:
-                    print(f"Новый пользователь: {tg_id} (запросов: {initial_requests})")
+                    # print(f"Новый пользователь: {tg_id} (запросов: {initial_requests})")
+                    return True  # Пользователь успешно добавлен
+                else:
+                    # print(f"Пользователь {tg_id} уже существует")
+                    return False  # Пользователь уже есть в базе
+                    
         except Exception as e:
             print(f"Ошибка при добавлении пользователя: {e}")
+            return False  # Ошибка при добавлении
     
     def get_user_requests(self, tg_id):
         """Получает количество запросов пользователя"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT requests FROM users WHERE tg_id = ?", 
@@ -96,7 +124,7 @@ class DatabaseManager:
     def use_request(self, tg_id):
         """Использует один запрос"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute(
@@ -115,7 +143,6 @@ class DatabaseManager:
                         "UPDATE users SET requests = requests - 1 WHERE tg_id = ?",
                         (tg_id,)
                     )
-                    conn.commit()
                     return True
                 
                 return False
@@ -127,13 +154,12 @@ class DatabaseManager:
     def add_requests(self, tg_id, amount):
         """Добавляет запросы пользователю"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "UPDATE users SET requests = requests + ? WHERE tg_id = ?",
                     (amount, tg_id)
                 )
-                conn.commit()
                 return True
         except Exception as e:
             print(f"Ошибка при добавлении запросов: {e}")
@@ -142,37 +168,34 @@ class DatabaseManager:
     def add_payment(self, tg_id, amount, stars_paid, payment_id):
         """Сохраняет информацию о платеже"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO payments (tg_id, amount, stars_paid, payment_id) VALUES (?, ?, ?, ?)",
                     (tg_id, amount, stars_paid, payment_id)
                 )
-                conn.commit()
         except Exception as e:
             print(f"Ошибка при сохранении платежа: {e}")
     
     def add_result(self, tg_id, prompt, result, prompt_tokens=0, completion_tokens=0):
         """Сохраняет запрос пользователя и ответ бота с информацией о токенах"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO results (tg_id, prompt, result, prompt_tokens, completion_tokens) VALUES (?, ?, ?, ?, ?)", 
                     (tg_id, prompt, result, prompt_tokens, completion_tokens)
                 )
-                conn.commit()
         except Exception as e:
             print(f"Ошибка при сохранении результата: {e}")
     
     def get_total_users(self):
         """Возвращает общее количество пользователей"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM users")
-                total_users = cursor.fetchone()[0]
-                return total_users
+                return cursor.fetchone()[0]
         except Exception as e:
             print(f"Ошибка при получении количества пользователей: {e}")
             return 0
@@ -180,11 +203,10 @@ class DatabaseManager:
     def get_total_requests(self):
         """Возвращает общее количество запросов"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM results")
-                total_requests = cursor.fetchone()[0]
-                return total_requests
+                return cursor.fetchone()[0]
         except Exception as e:
             print(f"Ошибка при получении количества запросов: {e}")
             return 0
@@ -192,7 +214,7 @@ class DatabaseManager:
     def get_total_revenue(self):
         """Возвращает общую выручку в звёздах"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT SUM(stars_paid) FROM payments")
                 result = cursor.fetchone()[0]
@@ -206,13 +228,12 @@ class DatabaseManager:
     def create_promo(self, code, requests, max_uses=None):
         """Создаёт новый промокод"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO promo_codes (code, requests, max_uses) VALUES (?, ?, ?)",
                     (code.upper(), requests, max_uses)
                 )
-                conn.commit()
                 return True
         except sqlite3.IntegrityError:
             print(f"Промокод {code} уже существует")
@@ -224,7 +245,7 @@ class DatabaseManager:
     def activate_promo(self, tg_id, code):
         """Активирует промокод для пользователя"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 
                 # Проверяем существование промокода
@@ -273,7 +294,6 @@ class DatabaseManager:
                     (tg_id, code.upper(), requests)
                 )
                 
-                conn.commit()
                 return {'success': True, 'requests': requests}
                 
         except Exception as e:
@@ -283,7 +303,7 @@ class DatabaseManager:
     def get_all_promos(self):
         """Возвращает список всех промокодов"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT code, requests, max_uses, used, active FROM promo_codes ORDER BY created_at DESC"
@@ -305,13 +325,12 @@ class DatabaseManager:
     def delete_promo(self, code):
         """Удаляет промокод"""
         try:
-            with self.lock, sqlite3.connect(self.db_name) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "DELETE FROM promo_codes WHERE code = ?",
                     (code.upper(),)
                 )
-                conn.commit()
                 
                 if cursor.rowcount > 0:
                     return True
@@ -320,5 +339,5 @@ class DatabaseManager:
             print(f"Ошибка при удалении промокода: {e}")
             return False
 
-# Создаём глобальный экземпляр менеджера БД
+
 db_manager = DatabaseManager()

@@ -21,11 +21,24 @@ waiting_for_amount = {}
 # ==================== ОСНОВНЫЕ КОМАНДЫ ====================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    db_manager.add_user(message.chat.id, initial_requests=3)
+    is_new_user = db_manager.add_user(message.chat.id, initial_requests=3)
     requests = db_manager.get_user_requests(message.chat.id)
-    welcome_text = (
-        "👋 Привет! Я ваш AI-ассистент на базе GPT-5.1 Instant.\n\n"
-        f"💰 Ваш баланс: {requests} запросов\n\n"
+    
+    greeting = "👋 Привет! Я ваш AI-ассистент на базе GPT-5.1 Instant.\n\n"
+    
+    if is_new_user:
+        greeting += f"🎁 Вам начислено {requests} бесплатных запроса!\n\n"
+
+        total_users = db_manager.get_total_users()
+        bot.send_message(
+            ADMIN_ID,
+            f"Новый подписчик!\nИтого пользователей: {total_users}",
+            disable_notification=True
+        )
+    else:
+        greeting += f"💰 Ваш баланс: {requests} запросов\n\n"
+    
+    greeting += (
         "Просто напишите мне сообщение (минимум 10 символов), "
         "и я постараюсь помочь!\n\n"
         "Доступные команды:\n"
@@ -34,9 +47,12 @@ def send_welcome(message):
         "/balance - проверить баланс\n"
         "/buy - купить запросы\n"
         "/promo - активировать промокод\n"
-        "/dev - о разработчике и проекте"
+        "/dev - о разработчике и проекте\n\n"
+        "❗️ Бот не хранит историю переписки\n"
+        "❗️ Каждое сообщение это новая задача"
     )
-    bot.reply_to(message, welcome_text)
+    
+    bot.reply_to(message, greeting)
 
 
 @bot.message_handler(commands=['help'])
@@ -51,6 +67,8 @@ def send_help(message):
         "• Далее: 1 запрос = 1 ⭐ Telegram Star\n"
         "• Можно купить от 1 до 100 запросов\n"
         "• Или активировать промокод командой /promo\n\n"
+        "❗️ Бот не хранит историю переписки\n"
+        "❗️ Каждое сообщение это новая задача\n\n"
         "Примеры запросов:\n"
         "• Объясни квантовую физику простыми словами\n"
         "• Напиши стихотворение про осень\n"
@@ -505,6 +523,23 @@ def generate_result(message):
         bot.reply_to(message, error_message)
         import traceback
         traceback.print_exc()
+
+
+@bot.message_handler(content_types=[
+    'photo',
+    'video',
+    'document',
+    'sticker',
+    'voice',
+    'audio',
+    'video_note',
+    'animation'
+])
+def reject_non_text(message):
+    bot.reply_to(
+        message,
+        "❌ Бот работает только с текстовыми сообщениями. Фото, видео, файлы и стикеры не поддерживаются."
+    )
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-from config import AI_TOKEN
+from config import AI_TOKEN, SYSTEM_PROMPT
 from openai import OpenAI
 import re
 import html
@@ -6,7 +6,7 @@ import html
 if not AI_TOKEN:
     raise ValueError("AI_TOKEN не найден в .env файле")
 
-# Создаём клиента OpenAI
+
 client = OpenAI(api_key=AI_TOKEN)
 
 def md_to_html(md: str) -> str:
@@ -47,7 +47,10 @@ def get_openai_response(message: str, effort: str = "low", verbosity: str = "low
     try:
         result = client.responses.create(
             model="gpt-5.1",
-            input=message,
+            input=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": message}
+            ],
             reasoning={"effort": effort},
             text={"verbosity": verbosity},
         )
