@@ -5,3 +5,5 @@
 *.zip
 pdf/
 pdf/*
+venv
+venv/*
